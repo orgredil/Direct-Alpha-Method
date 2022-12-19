@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="keywords" content="Direct Alpha, Private Equity Alpha, Private Equity Alfa, Private Equity Excess Return per period">
+    <meta name="description" content="This website describes the Direct Alpha method of Gredil, Griffiths, and Stucke to compute annualized excess return of a 'Private Equity'-like fund. 
+    The site contains an abbreviated introduction, references to the full paper versions, and codes to compute the measure for selected of programs used in applied research.">
+    <title>Direct Alpha Method</title>
+
+    <style>
+        table,  td {
+          border: 1px solid black;
+          border-collapse: collapse;
+        }
+        </style>
+
+</head>
+<body>
+    <h1>Direct Alpha Method</h1>
+    <a href="pages/about.html">Authors</a>&nbsp;
+    <a href="pages/link2paper.html">Full Text</a>&nbsp;
+    <a href="pages/codes1.html">Data and Codes</a>&nbsp;
+    <a href="pages/slides.html">Slides</a>
+
+
+    <h2>Overview</h2>
+<p>We develop a metric of periodic (e.g., quarterly or annualized) excess return of a 'private equity'-like fund that is well-founded in theory, while directly accounting for the risk-factor realizations and compounding returns over multiple periods of irregular lengths.  We therefore name this metric Direct Alpha (DA). It is simply the Internal Rate of Returns (IRR) computed from the cash flows of the fund that were discounted using the returns of the benchmark portfolio. One of the key advantages of DA is therefore the fact most potential users already know how to compute it.  The choice of benchmark portfolio however is critically important for the economic interpretation and statistical properties. Our methodology applies to other investment vehicles that are structured as PE fund partnerships, hold hard-to-value assets, and endure long lives (e.g., Infrastructure, Private Credit). </p>
+
+<p>It is intuitive to view DA as annualized Kaplan Schoar (2005) Public Market Equivalent (PME) in a way that does not require an estimate of a duration of the fund. The relations between the Kaplan-Scholar PME and DA is analogous to that between the fund money multiple and the IRR (computed off the raw cash flows).  However, to the extent the selected discount factors reflects the realized risk premia or the fund- or deal-specific risk exposures, DA inherits the more general interpretations and superior statistical properties from Generalized PME of Korteweg and Nagel (2016, 2021) and the fund mimicking benchmark portfolio of Gupta and Van Nieuwerburgh (2021).</p>
+
+<p>We show how DA relates to other methods developed in the industry and applied work to estimate the annualized performance of PE funds. Specifically, we provide consistent notation and review the methodology of the Index Comparison Method (ICM) of Long and Nickels (1996), which is recognized as the first of the various PME methods, the PME+ of Rouvinez (2003) and Capital Dynamics, and the mPME by Cambridge Associates (2013). We use Burgiss data on cash flows of 4,188 buyout and venture funds and show that DA results in significantly different mean and variance of annualized PE fund returns when compared to the aforementioned heuristic estimates and duration-based approximations. The discrepancies are particularly stark for the venture sample and are larger than those arising from the benchmark choice and adjustments for the expected risk-quantity. We also show that the choice of PE fund alpha metric is consequential for fund ranking within its peers.  The level of concordance with DA is as low as 46% for the middle two quartiles for ICM-PME but improves to 85% for Kaplan-Schoar PME adjusted for fund-specific duration estimates. The risk of severe misranking relatively to DA remains salient, nonetheless.</p>
+
+<p>Several contemporaneous studies (see, inter alia, Phalippou and Gottschalg 2009; Driessen, Lin, and Phalippou 2012) have constructed the cash flow-specific discount rates as market return plus alpha and proposed solving for alpha that produces zero Net Present Value (analogously to solving for a bond credit spread). However, this approach too results in numerically different values from DA as (r_t+a)-series compound differently than r_t.  Most importantly, DA yields economically valid alpha estimates even with non-tradeable risk factors.</p>
+
+<h2>Numerical example</h2>
+<p>The example is based on the a hypothetical fund’s cash flows and NAV reports (NAV_PE), which are dated as indicated in the first column of each table. Columns C (D) indicate contributions to (distributions from) the fund; whereas m_n indicates the level of the benchmark scaled to be 100 at the fund’s first cash flow on Dec-31, 2001.  The corresponding future values, FV(C) and FV(D), are as of Dec-31, 2010. See <a href="pages/codes1.html">Data and Codes</a> for the spreadsheet with formulas.</p>
+
+<img src="figures/DAexample4site.png" alt="a chart with numerical example">
+
+
+<p>See Section 2.B of the <a href="pages/link2paper.html">Full Text</a> for definitions and discussions.</p>  
+
+
+
+<h2>Empirical results</h2>
+    <p>In our emprical analysis, we used <a href="https://privatei.burgiss.com/" target="_blank">Burgiss data</a>  on fund cash flows to compute and compare the fund alpha estimators considered in the paper.  Burgiss data have been extensively used in academic research and by practitioners.   We considred buyout and venture funds. We included all funds with greater than $5mln in committed capital incepted between 1983 and 2014. Our last observation wass 2021 Q1, Therefore all funds are at least 7-year old and the vast majority is fully resolved. The table below reports the summary statistics for our sample </p>
+
+    <table>
+        <style type="text/css">
+            td {
+              padding: 0 25px;
+            }
+          </style>
+
+        <tr>
+            <th> </th>
+            <th>Mean</th>
+            <th>St.Dev.</th>
+            <th>P25</th>
+            <th>P50</th>
+            <th>P75</th>
+          </tr>
+          <tr>
+            <th> </th>           
+            <td colspan="5" style="text-align:center">Buyout funds (N=2,435)</td>
+          </tr>
+          <tr>
+            <th>Vintage year</th>
+            <td>2005</td>
+            <td>6.71</td>
+            <td>2000</td>
+            <td>2006</td>
+            <td>2011</td>
+          </tr>
+          <tr>
+            <th>Fund size (USD m)</th>
+            <td>939</td>
+            <td>1747</td>
+            <td>180</td>
+            <td>397</td>
+            <td>892</td>
+          </tr>
+          <tr>
+            <th>Internal Rate of Return (%)</th>
+            <td>12.3</td>
+            <td>16.7</td>
+            <td>4.3</td>
+            <td>11.4</td>
+            <td>19.5</td>
+          </tr>
+          <tr>
+            <th>Money Multiple</th>
+            <td>1.73</td>
+            <td>1.02</td>
+            <td>1.21</td>
+            <td>1.59</td>
+            <td>2.07</td>
+          </tr>
+  
+          <tr>
+            <td> </td>           
+            <td colspan="5" style="text-align:center">Venture funds (N=1,753)</td>
+          </tr>
+          <tr>
+            <th>Vintage year</th>
+            <td>2002</td>
+            <td>8.7</td>
+            <td>1998</td>
+            <td>2003</td>
+            <td>2008</td>
+          </tr>
+          <tr>
+            <th>Fund size (USD m)</th>
+            <td>237</td>
+            <td>283</td>
+            <td>63</td>
+            <td>150</td>
+            <td>301</td>
+          </tr>
+          <tr>
+            <th>Internal Rate of Return (%)</th>
+            <td>13.9</td>
+            <td>37.3</td>
+            <td>-0.6</td>
+            <td>7.7</td>
+            <td>19.3</td>
+          </tr>
+          <tr>
+            <th>Money Multiple</th>
+            <td>2.41</td>
+            <td>3.73</td>
+            <td>0.95</td>
+            <td>1.54</td>
+            <td>2.55</td>
+          </tr>
+
+    </table>
+
+    <p>Burgiss computes DA against several indices as part of their services packages to clients. We recomputed DAs and all other performance metrics using the code  that implements a basic search for a most plausible polynomial root. We use CRSP value-weighted index as a proxy for market portfolio and Fama-French 12 industry returns (or one of the Fama-French 6 size- and style-returns) from <a href="https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html">Ken French's data repository</a> for industry benchmark.</p>
+
+    <p>The table below reports the summary statistics of the DA estimates for our samples of buyout funds and venture funds. DA estimates are produced with two benchmarks (market and industry) and two ways to risk adjust (See Section 3 of the <a href="pages/link2paper.html">Full Text</a> for details).  Each fund's DA estimate was obtained at quarterly frequency and then annualized before computing the respective statistic: the mean, the standard deviation, and the median. All in %.</p>
+
+    <table>
+
+        <tr>
+            <th> Benchmark: </th>
+            <th colspan="2" style="text-align:center">Market</th>
+            <th colspan="2" style="text-align:center">Industry</th>
+            <th colspan="2" style="text-align:center">Market</th>
+            <th colspan="2" style="text-align:center">Industry</th>
+        </tr>
+        <tr>
+            <th> Method: </th>
+            <td> Raw</td> <td>Beta-adj</td><td> Raw</td> <td>Beta-adj</td>
+            <td> Raw</td> <td>Beta-adj</td><td> Raw</td> <td>Beta-adj</td>
+        </tr>
+        <tr>
+            <th> Sample: </th>
+            <td colspan="4" style="text-align:center">Buyout funds</td>
+            <td colspan="4" style="text-align:center">Venture funds</td>
+        </tr>
+          <tr>
+            <th>Mean</th>
+            <td>3.10</td>
+            <td>3.34</td>
+            <td>1.70</td>
+            <td>1.76</td>
+            <td>3.40</td>
+            <td>-0.47</td>
+            <td>-0.45</td>
+            <td>-0.22</td>
+          </tr>    
+          <tr>
+            <th>St.Dev.</th>
+            <td>15.8</td>
+            <td>15.7</td>
+            <td>15.9</td>
+            <td>15.8</td>
+            <td>29.9</td>
+            <td>27.6</td>
+            <td>24.7</td>
+            <td>24.6</td>
+          </tr>    
+          <tr>
+            <th>Median</th>
+            <td>2.32</td>
+            <td>2.51</td>
+            <td>0.62</td>
+            <td>0.67</td>
+            <td>-1.63</td>
+            <td>-4.77</td>
+            <td>-3.90</td>
+            <td>-3.56</td>
+          </tr>    
+    </table>
+
+    <p>The figure below compares DA with the alternative measures of PE fund alphas via scatter plots. The red dash line is the 45-degree line. Additionally, each panel reports the univariate regression estimates (the gray line indicates the slope) and its diagnostics.  The regression sample include buyout and venture funds for which both excess return metrics are within 20% from 0.</p>
+
+    <img src="figures/scatters2crsp.png" alt="four scatter plots">
+
+    <p>The codes in <a href="pages/codes1.html">Data and Codes</a> use hypothetical fund data </p>
+
+
+
+    <p><b>&copy; O.Gredil, B.Griffiths, R.Stucke</p> 
+    <a href="#">Jump to the Top</a>
+</body>
+</html>
