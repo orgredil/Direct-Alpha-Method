@@ -1,0 +1,15 @@
+Industry,OInternalShortCode,OInternalShortCode2,InternalShortCode,InternalShortCode2,FFIcode,FFIcode2
+Consumer Discretionary,SP500-25TR,MSCI655596G,RGUSDS,MXWOUCD,durbl,durbl
+Consumer Staples,SP500-30TR,MSCI655597G,RGUSSS,MXWOUCS,nodur,nodur
+Energy,SP500-10TR,MSCI655593G,RGUSES,MXWOUEN,enrgy,enrgy
+Financials,SP500-40TR,MSCI655599G,RGUSFS,MXWOUFN,money,money
+Health Care,SP500-35TR,MSCI655598G,RGUSHS,MXWOUHC,hlth,hlth
+Industrials,SP500-20TR,MSCI655595G,RGUSPS,MXWOUIN,manuf,manuf
+Information Technology,SP500-45TR,MSCI655600G,RGUSTS,MXWOUIT,buseq,buseq
+Materials,SP500-15TR,MSCI655594G,RGUSMS,MXWOUMT,other,other
+Telecommunication Service,SP500-50TR,MSCI655601G,RGUMCTEP,MXWOUTC,telcm,telcm
+Unknown,SP1500PGTR,MSCI106231G,RTY,MXWOU,,
+Utilities,SP500-55TR,MSCI655602G,RGUSUS,MXWOUUT,utils,utils
+Real Estate,,,FNRETR,SREITGL,money,money
+Value,,,RUJ,MXWOU00V,,
+Growth,,,RUO,MXWOU,,
