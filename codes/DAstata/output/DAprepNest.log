@@ -1,0 +1,1995 @@
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  C:\Users\ogredil.BUS-L-GREDIL\Dropbox\BURGISS\dalf\site\codes_all\DAstata\output\\DAprepNest.log
+  log type:  text
+ opened on:  28 Dec 2022, 11:51:38
+
+. clear
+
+. set linesize 255
+
+. set more off
+
+. set min_memory 3G
+
+. set matsize 1000
+
+. cap set niceness 2
+
+. 
+. 
+. ** Benchmarks' prep
+. * if other than crsp/FF are usedmake sure that the file structure and variables ...  
+. * ... are the same as in code/industry_ret.dta and code/mkt_lvl.dta 
+. * ... that are prodoced with crsp&FF options 
+. * ... and contain the cumulative returns and return-squareds
+. if "${iScheme}"=="FF" & "${bmk}"=="crsp" {
+. disp "pre-supplied Fama-French industry and crsp returns are used"
+pre-supplied Fama-French industry and crsp returns are used
+. do "${codes}BenchmarkPrep.do"
+
+. ////////////////////////////////////////////////////////////////////////////////
+> // this code need to be run by MAIN4site_DirectAlpha.do
+. /*Copyright O.Gredil*/
+. set more off
+
+.         use "${data}\crsp_plus", clear
+
+. gsort date
+
+. gen mkt_lvl=exp(sum(log(1+crsp)))
+
+. gen _mkt_rsq=crsp^2
+
+. gen qtr=qofd(date)
+
+. gen mkt_rsq=sum(_mkt_rsq)
+
+. cap rename crsp mkt
+
+. keep mkt_lvl mkt_rsq date mkt
+
+. bcal create bdays, from(date) replace
+
+  Business calendar bdays (format %tbbdays):
+
+    purpose:  
+
+      range:  02jan1976  28may2021
+                  5845      22428   in %td units
+                     0      11451   in %tbbdays units
+
+     center:  02jan1976
+                  5845              in %td units
+                     0              in %tbbdays units
+
+    omitted:     5,132              days
+                   113.0            approx. days/year
+
+   included:    11,452              days
+                   252.2            approx. days/year
+
+  Notes:
+
+    business calendar file bdays.stbcal saved
+
+. gen bday=bofd("bdays",date)
+
+. save mkt_lvl, replace
+(note: file mkt_lvl.dta not found)
+file mkt_lvl.dta saved
+
+. 
+. insheet using "${data}\industry_map.csv", comma clear names
+(7 vars, 14 obs)
+
+. drop internalshortcode*
+
+. rename (fficode fficode2)(internalshortcode internalshortcode2)
+
+. save industry_map, replace
+(note: file industry_map.dta not found)
+file industry_map.dta saved
+
+. 
+. 
+. use mkt_lvl, clear
+
+. qui su date
+
+. local fdate=r(min)
+
+. use "${data}\ffi12_vwew_idx", clear
+
+. gsort internalshortcode date
+
+. gen internalshortcode2=internalshortcode
+
+.         if "${iScheme}"=="EWFF" {
+.                 bys internalshortcode: gen double logtrr=log(IDXew)-log(IDXew[_n-1])
+.         }
+
+.         else {
+.                 bys internalshortcode: gen double logtrr=log(IDXvw)-log(IDXvw[_n-1])
+(12 missing values generated)
+.         }
+
+.         drop IDXew IDXvw
+
+. drop if date<`fdate'+2
+(24 observations deleted)
+
+. 
+. joinby internalshortcode using industry_map
+
+. duplicates rep industry date
+
+Duplicates in terms of industry date
+
+--------------------------------------
+   copies | observations       surplus
+----------+---------------------------
+        1 |       182402             0
+--------------------------------------
+
+. save industry_ret0, replace
+(note: file industry_ret0.dta not found)
+file industry_ret0.dta saved
+
+. ////////////////////////////////////////////////////////////////////////////////
+> 
+. 
+. ////////////////////////////////////////////////////////////////////////////////
+> use industry_ret0, clear
+
+. gsort industry date
+
+. bys industry : keep if _n==_N
+(182,391 observations deleted)
+
+. drop date logtrr 
+
+. egen indnum=group(industry)
+
+. save industry_char, replace
+(note: file industry_char.dta not found)
+file industry_char.dta saved
+
+. 
+. // use market returns for industry returns before their series begin
+. use mkt_lvl, clear
+
+. qui su date
+
+. local fdate=r(min)
+
+. use industry_ret0, clear
+
+. egen indnum=group(industry)
+
+. keep indnum date
+
+. duplicates drop indnum date, force
+
+Duplicates in terms of indnum date
+
+(0 observations are duplicates)
+
+. gsort indnum date
+
+. bys indnum: keep if _n==1
+(182,391 observations deleted)
+
+. replace date=date-1
+(11 real changes made)
+
+. expand 2
+(11 observations created)
+
+. bys indnum: replace date=`fdate' if _n==1
+(11 real changes made)
+
+. xtset indnum date
+       panel variable:  indnum (strongly balanced)
+        time variable:  date, 02jan1976 to 03jan1976
+                delta:  1 day
+
+. tsfill
+
+. duplicates drop indnum date, force
+
+Duplicates in terms of indnum date
+
+(0 observations are duplicates)
+
+. joinby indnum using industry_char
+
+. merge m:1 date using mkt_lvl, keepus(mkt) keep(matched) nogen
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+    matched                                11  
+    -----------------------------------------
+
+. gen logtrr=log(1+mkt)
+
+. drop mkt
+
+. drop indnum
+
+. save industry_retStub, replace 
+(note: file industry_retStub.dta not found)
+file industry_retStub.dta saved
+
+. 
+. use industry_ret0, replace
+
+. gsort industry date
+
+. append using industry_retStub
+
+. egen indnum=group(industry)
+
+. keep indnum date logtrr
+
+. gen _ret_rsq=logtrr^2
+
+. xtset indnum date
+       panel variable:  indnum (strongly balanced)
+        time variable:  date, 02jan1976 to 28may2021, but with gaps
+                delta:  1 day
+
+. tsfill
+
+. joinby indnum using industry_char
+
+. gsort industry date
+
+. gen qtr=qofd(date)
+
+. bys industry: gen ibmk_rsq=sum(_ret_rsq)
+
+. bys industry: gen ibmk_lvl=exp(sum(logtrr))
+
+. keep industry date ibmk_lvl ibmk_rsq
+
+. gsort industry date 
+
+. save industry_ret, replace
+(note: file industry_ret.dta not found)
+file industry_ret.dta saved
+
+. 
+. cap rm industry_ret0
+
+. cap rm industry_retStuby 
+
+. cap rm industry_char
+
+. 
+. 
+. 
+end of do-file
+. cap copy "industry_ret.dta" "industry_ret_FF.dta"
+. // cap rm "industry_ret.dta" 
+. cap copy "mkt_lvl.dta" "mkt_lvl_crsp.dta"
+. // cap rm "mkt_lvl.dta" 
+. }
+
+. else {
+. disp "Need to provide industry_ret.dta and mkt_lvl.dta from elsewhere"
+. }
+
+. if "${fundSim}"=="Yes" {
+. global FundsNumber "250"
+. // the code below simulates cash flows for about FundsNumber of funds with varying risk across differnt industries
+. // the true per period alpha of each fund is zero (but the sampling realization is not!)
+. disp "simulated fund data are used"
+simulated fund data are used
+. global CFdset "fundSim"
+. do "${codes}FundDataSim.do"
+
+. ////////////////////////////////////////////////////////////////////////////////
+> // this code need to be run by MAIN4site_DirectAlpha.do
+. /*Copyright O.Gredil*/
+. set seed 2014  // fix seeds so results are reproduceable
+
+. set more off
+
+. use industry_ret, clear
+
+. global dummyFundRet "Yes" // if fund retuns equal industry returns 
+
+. global dummyFundRet "No"  // if fund retuns feature idiosync compe and levered ind.ret 
+
+. qui gen year=year(date)
+
+. qui su year
+
+. local minyr=r(min)+1 
+
+. local maxyr=r(max)-6 
+
+. keep industry
+
+. duplicates drop
+
+Duplicates in terms of all variables
+
+(182,413 observations deleted)
+
+. local fundsPerInd=ceil(${FundsNumber}/_N) 
+
+. disp "`fundsPerInd'"
+23
+
+. expand `fundsPerInd'
+(242 observations created)
+
+. gen vintage=runiformint(max(`minyr',${fVintage}),min(`maxyr',${lVintage}))
+
+. gen fundid=_n
+
+. gen incept=mdy(ceil(runiform()*12),ceil(runiform()*28),vintage)
+
+. format incept %td
+
+. joinby industry using industry_ret
+
+. drop if year(date)<vintage | year(date)>vintage+13
+(2,980,706 observations deleted)
+
+. format incept %td
+
+. drop if date<incept
+(44,070 observations deleted)
+
+. gen bday =bofd("bdays",date)
+(363,057 missing values generated)
+
+. gen qofd=qofd(date)
+
+. qui su qofd
+
+. drop if qofd==r(max)
+(3,654 observations deleted)
+
+. gen weekday=dow(date)
+
+. drop if bday==. 
+(361,986 observations deleted)
+
+. drop bday* weekday qofd
+
+. gsort fundid date
+
+. bys fundid: replace incept=date[1] 
+(253442 real changes made)
+
+. 
+. 
+. //Cash and Value flow process by fund
+. **since-inception returns and age in years
+. local fidVlty=0.1 // idiosyncratic returns' to industry vol-ty per year
+
+. gen fidlogret=rnormal()*`fidVlty'/sqrt(252) - 0.5*(`fidVlty'^2)/252
+
+. gen bet2i=rnormal(1.1,.1)
+
+. gen ftype="N(1.1,`fidVlty'^2) beta to ind" 
+
+. bys fundid: gen age=(date-date[1])/365.25
+
+. * see Korteweg and Sorensen (2010 RFS) or Korteweg and Nagel (2022 WP) for DGP setup
+. bys fundid: gen fidCumLogRet=sum(fidlogret)-fidlogret[1] ///
+>                                                         +bet2i*(log(ibmk_lvl)-log(ibmk_lvl[1])) ///
+>                                                         +0.5*bet2i*(bet2i-1)*(ibmk_rsq-ibmk_rsq[1])
+
+. bys fundid: gen R0t=exp(fidCumLogRet)
+
+. if "${dummyFundRet}"=="Yes" {
+. bys fundid: replace R0t=(ibmk_lvl/ibmk_lvl[1]) 
+. }
+
+. **smoothed returns at daily frequency
+. gen barR0t=R0t
+
+. bys fundid: replace barR0t=(1-.95)*R0t+.95*barR0t[_n-1] if _n>1
+(805083 real changes made)
+
+. bys fundid: egen trueAlf=mean(fidlogret)
+
+. su trueAlf if barR0t==R0t
+
+    Variable |        Obs        Mean    Std. Dev.       Min        Max
+-------------+---------------------------------------------------------
+     trueAlf |        253   -.0000281    .0001162  -.0003317   .0003118
+
+. cap drop temp
+
+. save supertemp, replace 
+(note: file supertemp.dta not found)
+file supertemp.dta saved
+
+. 
+. 
+. use supertemp, clear
+
+. 
+. 
+. **interim calls's frequency calibrated to an average of 14 during first 6 years 
+. gen C1s=rbinomial(1,0.0075) if age<=6
+(422,515 missing values generated)
+
+. bys fundid: replace C1s=0 if C1s==.
+(422515 real changes made)
+
+. bys fundid: replace C1s=1 if _n==1
+(252 real changes made)
+
+. ** interim distrib. freq. calibrated to an average 21 during 4th to 12th year 
+. bys fundid: gen D1s=rbinomial(1,0.0075) if inrange(age,3,12)==1
+(265,794 missing values generated)
+
+. bys fundid: replace D1s=0 if D1s==.
+(265794 real changes made)
+
+. //      collapse (sum) C1s D1s, by(fundid)
+. //      tabstat C1s D1s, st(mean p1 p25 p50 p75 p99)
+. 
+. **see Brown,Ghysels,Gredil (2023RFS) for details on Value-to-cumR mapping 
+. gen C2V=min(.99,rexponential(0.25)/age)*C1s //<1 since V includes C itself, 0.25x/age on average (if occur) 
+
+. gen df =min(.99,normal(-2.5+.25*age+rnormal()))*D1s //dist. as a fraction of Value
+
+. bys fundid: gen M2lagM=1/(1-df)-C2V if _n>1
+(253 missing values generated)
+
+. gen M=1
+
+. bys fundid: replace M=M[_n-1]*M2lagM if _n>1
+(772898 real changes made)
+
+. 
+. **assume the t=1 call and, thus, V are normalized to 1
+. gen V=R0t/M
+
+. bys fundid: gen C=cond(_n==1,1,C2V*V)
+
+. bys fundid: egen fundSize=total(C)
+
+. 
+. ** terminal D end of the 13th year or when V 1st drops below 0.05*fundSize after 5th year
+. gen D=cond(df==0,0,df/(1-df)*V)
+
+. gen temp=cond(V<0.1 & age>5,1,0)
+
+. bys fundid: gen temp1=sum(temp)
+
+. bys fundid: gen temp2=1 if temp[_n+1]==1
+(658,530 missing values generated)
+
+. replace temp2=0 if temp2==.
+(658,530 real changes made)
+
+. bys fundid: gen temp3=sum(temp2)
+
+. drop if temp3>0
+(159,242 observations deleted)
+
+. drop temp*
+
+. 
+. qui su vintage
+
+. bys fundid: replace D=D+V if vintage<r(max)-3 & _n==_N
+(222 real changes made)
+
+. bys fundid: replace V=0 if vintage<r(max)-3 & _n==_N
+(222 real changes made)
+
+. gen qofd=qofd(date)
+
+. format qofd %tq
+
+. gsort fundid qofd date 
+
+. bys fundid qofd: gen nav=barR0t/M if _n==_N
+(635,639 missing values generated)
+
+. //Assume that last reported nav is 0, whenever the true value is 
+. bys fundid: replace nav=cond(V==0,0,barR0t/M) if _n==_N
+(222 real changes made)
+
+. 
+. **NPV identity check:
+. * _PME should be (.9999,1.0001) if both bmk and fund returns are ibmk
+. * _PME2 & RepErr reflects return smoothing bias 
+. local bmk "ibmk"
+
+. bys fundid: gen `bmk'_lvl0=`bmk'_lvl[1] 
+
+. bys fundid: gen `bmk'_lvlT=`bmk'_lvl[_N] 
+
+. gen rc_0t =log(`bmk'_lvl/`bmk'_lvl0)
+
+. gen __dfac=exp(log(`bmk'_lvlT/`bmk'_lvl0)-rc_0t)
+
+. bys fundid: gen C_fvT =C*__dfac
+
+. bys fundid: gen D_fvT =D*__dfac
+
+. bys fundid: gen cumC_fv=sum(C*__dfac)/__dfac
+
+. bys fundid: gen cumD_fv=sum(D*__dfac)/__dfac
+
+. bys fundid: gen _PME=(cumD_fv+V)/cumC_fv
+
+. bys fundid: gen _PME2=(cumD_fv+nav)/cumC_fv
+(635,639 missing values generated)
+
+. bys fundid: gen RepErrE=log(_PME2/_PME) if _n==_N & V!=0
+(646,063 missing values generated)
+
+. gen RepErr=log(_PME2/_PME) if RepErrE==.
+(635,670 missing values generated)
+
+. su _PME* RepErr*
+
+    Variable |        Obs        Mean    Std. Dev.       Min        Max
+-------------+---------------------------------------------------------
+        _PME |    646,094    1.034827    .1733233   .4849608   2.863827
+       _PME2 |     10,455    1.031002    .1685371    .504764   2.186467
+     RepErrE |         31   -.0049501    .0189942  -.0702094   .0241432
+      RepErr |     10,424   -.0033536    .0440711  -.4342225   .3566049
+
+. 
+. 
+. keep if nav!=. | C>0 | D>0
+(629,460 observations deleted)
+
+. bys fundid: gen time=qofd-qofd[1] 
+
+. rename bet2i bet_est
+
+. keep  fundid ftype industry vintage incept time date  C D nav bet_est
+
+. order fundid ftype industry vintage incept time date  C D nav bet_est
+
+. save "${data}\${CFdset}", replace
+file C:\Users\ogredil.BUS-L-GREDIL\Dropbox\BURGISS\dalf\site\codes_all\DAstata\data\\fundSim.dta saved
+
+. 
+. rm supertemp.dta
+
+. 
+end of do-file
+. }
+
+. else {
+. disp "Need to provide fund cash flows (and at least terminal NAV data).. " 
+. disp "...from elsewere with variables as in data/fundSim.dta"
+. disp "...and dates shifted to adjacent dates w/ the mkt return data (if necessary)"
+. }
+
+. /////////////////////////////////////////////////////////////////////////////////
+> 
+. global bmks "ibmk"
+
+. global bmks "ibmk mkt"
+
+. foreach bmk in $bmks {
+  2. global bmk "`bmk'"
+  3. disp "BEGIN preps for benchmark: `bmk'"
+  4. do "${codes}DAdataPrep"
+  5. disp "END preps for benchmark: `bmk'"
+  6. disp "BEGIN IRR computations for benchmark: `bmk'"
+  7. do "${codes}DAestimation"
+  8. disp "END IRR computations for benchmark: `bmk'"
+  9. 
+. use "${output}fund_EOLest_`bmk'", clear
+ 10. if "${DAplus}"=="Yes" {
+ 11. global var4stat "DA_raw DA_badj anKSpme alf_LN alf_CD alf_ST"
+ 12. }
+ 13. else  {
+ 14. global var4stat "DA_raw DA_badj"
+ 15. }
+ 16. disp "Results for benchmark: `bmk'"
+ 17. tabstat $var4stat , st(N mean sd p1 p10 p25 p50 p75 p90 p99) 
+ 18. pwcorr $var4stat  
+ 19. }
+BEGIN preps for benchmark: ibmk
+
+. ////////////////////////////////////////////////////////////////////////////////
+> // this code need to be run by MAIN4site_DirectAlpha.do
+. /*Copyright O.Gredil*/
+. 
+. /// time-invariant characteristics /////
+> use "${data}\${CFdset}", clear
+
+. bys fundid: keep if _n==_N
+(16,381 observations deleted)
+
+. keep fundid industry* ftype vintage incept bet_est
+
+. rename incept date
+
+. merge m:1 date using mkt_lvl, keep(master matched) nogen keepus(mkt_lvl mkt_rsq)
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+    matched                               253  
+    -----------------------------------------
+
+. merge m:1 industry date using industry_ret, keep(master matched) gen(ibmk_match) keepus(ibmk_lvl ibmk_rsq)
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+    matched                               253  (ibmk_match==3)
+    -----------------------------------------
+
+. rename (date mkt_lvl mkt_rsq ibmk_lvl ibmk_rsq) (incept mkt_lvl0 mkt_rsq0 ibmk_lvl0 ibmk_rsq0)
+
+. replace ibmk_lvl0=mkt_lvl0 if ibmk_match==1
+(0 real changes made)
+
+. replace ibmk_rsq0=mkt_rsq0 if ibmk_match==1
+(0 real changes made)
+
+. save temp_char, replace
+(note: file temp_char.dta not found)
+file temp_char.dta saved
+
+. ** NAV chars 
+. use "${data}\${CFdset}", clear
+
+. keep if nav!=.
+(6,179 observations deleted)
+
+. gsort fundid time date
+
+. qui bysort fundid: egen navcount=count(nav)
+
+. qui bysort fundid: gen firstnav_qtr=time[1]
+
+. qui bysort fundid: gen lastnav_qtr=time[_N]
+
+. qui bysort fundid: egen lastnav=total(cond(time==lastnav_qtr,nav,.))
+
+. qui bysort fundid: gen lastnav_date=date[_N]
+
+. format lastnav_date %td
+
+. bys fundid: keep if _n==_N
+(10,202 observations deleted)
+
+. keep fundid last* firstnav_qtr navcount
+
+. merge 1:1 fundid using temp_char, nogen keep(matched)
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+    matched                               253  
+    -----------------------------------------
+
+. save temp_char, replace 
+file temp_char.dta saved
+
+. ** Contributions' chars 
+. use "${data}\${CFdset}", clear
+
+. keep if C!=0
+(13,513 observations deleted)
+
+. gsort fundid time date
+
+. qui bysort fundid: egen Ccount=count(C)
+
+. qui bysort fundid: gen firstC_qtr=time[1]
+
+. qui bysort fundid: gen lastC_qtr=time[_N]
+
+. qui bysort fundid: gen lastC_date=date[_N]
+
+. bys fundid: keep if _n==_N
+(2,868 observations deleted)
+
+. keep fundid last* firstC_qtr Ccount
+
+. merge 1:1 fundid using temp_char, nogen keep(matched)
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+    matched                               253  
+    -----------------------------------------
+
+. save temp_char, replace 
+file temp_char.dta saved
+
+. ** Distributions' chars 
+. use "${data}\${CFdset}", clear
+
+. keep if D!=0
+(13,267 observations deleted)
+
+. gsort fundid time date
+
+. qui bysort fundid: egen Dcount=count(D)
+
+. qui bysort fundid: gen firstD_qtr=time[1]
+
+. qui bysort fundid: gen lastD_qtr=time[_N]
+
+. qui bysort fundid: gen lastD_date=date[_N]
+
+. bys fundid: keep if _n==_N
+(3,114 observations deleted)
+
+. keep fundid last* firstD_qtr Dcount
+
+. merge 1:1 fundid using temp_char, nogen keep(matched)
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+    matched                               253  
+    -----------------------------------------
+
+. foreach vv of varlist *_date {
+  2. format `vv' %td 
+  3. }
+
+. save temp_char, replace 
+file temp_char.dta saved
+
+. 
+. 
+. 
+. use "${data}\${CFdset}", clear
+
+. drop industry* ftype vintage incept bet_est
+
+. joinby fundid using temp_char
+
+. merge m:1 date using mkt_lvl, keep(master matched) nogen
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+    matched                            16,634  
+    -----------------------------------------
+
+. merge m:1 industry date using industry_ret, keep(master matched)  keepus(ibmk_lvl ibmk_rsq) gen(ib) 
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+    matched                            16,634  (ib==3)
+    -----------------------------------------
+
+. replace ibmk_match=1 if industry==""
+(0 real changes made)
+
+. replace ibmk_lvl =mkt_lvl  if ibmk_match==1  
+(0 real changes made)
+
+. replace ibmk_lvl0=mkt_lvl0 if ibmk_match==1  
+(0 real changes made)
+
+. replace ibmk_rsq =mkt_rsq  if ibmk_match==1  
+(0 real changes made)
+
+. 
+. replace mkt_rsq=mkt_rsq-mkt_rsq0
+(16,634 real changes made)
+
+. replace ibmk_rsq=ibmk_rsq-ibmk_rsq0
+(16,634 real changes made)
+
+. 
+. gen weekday=dow(date)
+
+. gsort fundid date
+
+. if "${bmk}"=="ibmk" {
+.         local bmk "ibmk"
+. }
+
+. else {
+.         local bmk "mkt"
+. }
+
+. if "${BetaAdj}"=="Yes" {
+. gen pv_=exp(bet_est*log(`bmk'_lvl0/`bmk'_lvl))-0.5*`bmk'_rsq*bet_est*(bet_est-1)
+. gen pvD=D*exp(bet_est*log(`bmk'_lvl0/`bmk'_lvl))-0.5*`bmk'_rsq*bet_est*(bet_est-1)
+. gen pvC=C*exp(bet_est*log(`bmk'_lvl0/`bmk'_lvl))-0.5*`bmk'_rsq*bet_est*(bet_est-1)
+. gen pvNAV=nav*exp(bet_est*log(`bmk'_lvl0/`bmk'_lvl))-0.5*`bmk'_rsq*bet_est*(bet_est-1)
+(6,179 missing values generated)
+. 
+. }
+
+. else {
+. gen pv_=`bmk'_lvl0/`bmk'_lvl
+. gen pvD=D*`bmk'_lvl0/`bmk'_lvl
+. gen pvC=C*`bmk'_lvl0/`bmk'_lvl
+. gen pvNAV=nav*`bmk'_lvl0/`bmk'_lvl
+. }
+
+. /////////////////////////////////////////////////////////////////////////////////////
+> *Going to the quarterly frequency w/ zeros for quarters with missing cash flows
+. global qVars "qD qC C D pvC pvD"
+
+. gsort fundid time date
+
+. cap drop temp*
+
+. bys fundid time: gen temp=`bmk'_lvl if _n==_N
+(6,179 missing values generated)
+
+. bys fundid time: egen temp2 = total(temp), missing 
+
+. /* qC and qD will be nominal sums */
+. gen qC=C
+
+. gen qD=D
+
+. /*discount C and D at bmk return to be end-of-quarter values*/
+. replace C=C*temp2/`bmk'_lvl 
+(3,082 real changes made)
+
+. replace D=D*temp2/`bmk'_lvl 
+(3,104 real changes made)
+
+. foreach vv in C D {
+  2. qui bys fundid time: egen `vv'_count=count(`vv')
+  3. }
+
+. foreach vv of varlist $qVars {
+  2. disp "`vv'"
+  3. cap drop temp*
+  4. rename `vv' temp
+  5. qui bys fundid time: egen `vv'=total(temp)
+  6. cap drop temp*
+  7. }
+qD
+qC
+C
+D
+pvC
+pvD
+
+. bys fundid time: keep if _n==_N
+(6,179 observations deleted)
+
+. bys fundid: replace nav=0 if _n==_N & nav==. & lastD_date>=lastnav_date
+(0 real changes made)
+
+. bys fundid: gen  _nC=C[_n+1]/`bmk'_lvl[_n+1]*`bmk'_lvl if date[_n+1]>max(lastD_date,lastnav_date)
+(10,455 missing values generated)
+
+. bys fundid: egen __nC=total(_nC) 
+
+. order _*
+
+. bys fundid: drop if nav==. & date>=max(lastD_date,lastnav_date)
+(0 observations deleted)
+
+. bys fundid: replace D=D-__nC if _n==_N & __nC!=0
+(0 real changes made)
+
+. drop _*
+
+. drop lastC_date lastD_date lastnav_date
+
+. gen qofd=qofd(date)
+
+. 
+. xtset fundid qofd
+       panel variable:  fundid (unbalanced)
+        time variable:  qofd, 93 to 244
+                delta:  1 unit
+
+. tsfill  //will make a difference if for some quartres NAVs are not availble
+
+. *pick the last business day in the quarter for padded quarters
+. forval dd=1/7 {
+  2. gen temp`dd' = bofd("bdays",dofq(qofd+1)-`dd')
+  3. }
+(3,041 missing values generated)
+(3,103 missing values generated)
+(3,305 missing values generated)
+(3,170 missing values generated)
+(2,910 missing values generated)
+(3,260 missing values generated)
+(5,023 missing values generated)
+
+. egen temp_=rowfirst(temp1-temp7)
+
+. gen temp__=dofb(temp_,"bdays")
+
+. replace date=temp__ if date==.
+(0 real changes made)
+
+. cap drop temp*
+
+. foreach vv in C D {
+  2. replace `vv'_count=0 if `vv'==. | `vv'==0
+  3. }
+(7,947 real changes made)
+(7,740 real changes made)
+
+. *merge benchmark return data for EoQs with missing NAVs and zero CFs
+. merge m:1 date using mkt_lvl, update keep(1 3 4 5) nogen
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+
+    matched                            10,455
+        not updated                         0  
+        missing updated                     0  
+        nonmissing conflict            10,455  
+    -----------------------------------------
+
+. merge m:1 industry date using industry_ret, update keep(1 3 4 5) nogen
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+
+    matched                            10,455
+        not updated                         0  
+        missing updated                     0  
+        nonmissing conflict            10,455  
+    -----------------------------------------
+
+. replace  ibmk_lvl=mkt_lvl if ibmk_match==1 & ibmk_lvl==.
+(0 real changes made)
+
+. replace  ibmk_rsq=mkt_rsq if ibmk_match==1 & ibmk_rsq==.
+(0 real changes made)
+
+. bys fundid: egen fundT=max(time)
+
+. cap drop temp
+
+. qui gen temp=`bmk'_lvl if time==fundT
+
+. bys fundid: egen `bmk'_lvlT=max(temp) 
+
+. cap drop temp
+
+. order bday*
+
+. gsort fundid time
+
+. xtset fundid time
+       panel variable:  fundid (unbalanced)
+        time variable:  time, 0 to 55
+                delta:  1 unit
+
+. qui gen Rt=0 
+
+. bys fundid: replace  Rt=`bmk'_lvl/l1.`bmk'_lvl if _n>=2
+(10,202 real changes made)
+
+. save "funds_qly", replace 
+(note: file funds_qly.dta not found)
+file funds_qly.dta saved
+
+. 
+end of do-file
+END preps for benchmark: ibmk
+BEGIN IRR computations for benchmark: ibmk
+
+. ////////////////////////////////////////////////////////////////////////////////
+> // this code need to be run by MAIN4site_DirectAlpha.do
+. /*Copyright O.Gredil*/
+. set more off
+
+. use "funds_qly", clear // time increment should be quarterly in this file
+
+. gsort fundid time
+
+. bys fundid: gen PME=(sum(pvD)+pvNAV)/sum(pvC)
+
+. if "${bmk}"=="ibmk" {
+.         local bmk "ibmk"
+. }
+
+. else {
+.         local bmk "mkt"
+. }
+
+. gen rc_0t =log(`bmk'_lvl/`bmk'_lvl0)
+
+. gen __dfac=exp(log(`bmk'_lvlT/`bmk'_lvl0)-rc_0t)
+
+. bys fundid: gen C_fvT =C*__dfac
+
+. bys fundid: gen D_fvT =D*__dfac
+
+. bys fundid: gen cumC_fv=sum(C*__dfac)/__dfac
+
+. bys fundid: gen cumD_fv=sum(D*__dfac)/__dfac
+
+. bys fundid: gen _PME=(cumD_fv+nav)/cumC_fv
+
+. // scatter _PME PME //should be same if PV are not adjusted for beta 
+. replace PME =_PME if PME==.
+(0 real changes made)
+
+. bys fundid: replace PME = 0.98 if PME==. & time==0 
+(0 real changes made)
+
+. bys fundid: ipolate PME bday, gen(_PMEi)
+
+. replace PME =_PMEi if PME==.
+(0 real changes made)
+
+. bys fundid: gen  nav_ln = cumC_fv-cumD_fv
+
+. /* create interpolated NAVs to compute inputs for CapDyn and CamAs metrics in case some interim NAVs are missing*/ 
+. bys fundid: gen nav_i =cond(nav!=.,nav,(cumC_fv-C)*_PMEi+C*0.98 - cumD_fv)
+
+. if "${BetaAdj}"=="Yes" {
+. replace pvNAV = nav_i*exp(-rc_0t*bet_est) if pvNAV==.
+(0 real changes made)
+. }
+
+. else {
+. replace pvNAV = nav_i*exp(-rc_0t) if pvNAV==.
+. }
+
+. bys fundid: gen TVPI=(sum(D)+nav_i)/sum(C)
+
+. drop if time>60 // disregard any data beyond the 15th year 
+(0 observations deleted)
+
+. bys fundid: egen fundTe=max(time)
+
+. replace nav=nav_i if nav==.
+(0 real changes made)
+
+. 
+. order fundid time *PME* `bmk'* cumD_* cumC_*  nav* pvNAV _* rc_0t date C D
+
+. drop _*
+
+. 
+. /*CD adjustment factor*/
+. gen s_cd = cond(cumD_fv==0,1,(cumC_fv-nav_i)/cumD_fv)
+
+. /*mPME adjustment factor*/
+. gen s_ca = cond(D+nav_i<D,1,abs(D)/(abs(D)+abs(nav_i)))
+
+. gen NAVca=nav_i
+
+. bys fundid: replace NAVca=(1-s_ca)*(NAVca[_n-1]*Rt+C) if _n>=2
+(9980 real changes made)
+
+. gen Dca  =D
+
+. bys fundid: replace Dca=s_ca*(NAVca[_n-1]*Rt+C) if _n>=2
+(2715 real changes made)
+
+. 
+. qui su fundid
+
+. local minfundid=r(min)
+
+. local maxfundid=r(max)
+
+. foreach vv in "" "q" "pv" "pv2" "ln" "cd" "st" {
+  2. qui gen IRR`vv'=.
+  3. }
+
+. /////////////////// end-of-life estimates  ////////////////////////////////
+> // fund-quarters need be sorted descending by time
+. gsort +fundid  -time
+
+. timer clear 1
+
+. timer on 1
+
+. qui tab fundid, matrow(fundIDs)
+
+. local rows=rowsof(fundIDs)
+
+. _dots 0, title(Estimation Loop running) reps(`rows')
+Estimation Loop running (253)
+----+--- 1 ---+--- 2 ---+--- 3 ---+--- 4 ---+--- 5 
+
+. forval i=1/`rows' {
+  2. local fid=fundIDs[`i',1]
+  3. // disp "`fid'"
+.         qui su time if fundid==`fid' 
+  4.         local rmax=r(max)
+  5.         qui su nav if fundid==`fid' & time==`rmax'
+  6.         local nav=r(mean)
+  7.         if `nav'!=. {
+  8. //      /**/
+.         capture {
+  9.                 //IRR w/ eoq-valued CFs
+.                 cap drop CF
+ 10.                 cap drop _cumCF
+ 11.                 gen CF=D-C  if fundid==`fid'
+ 12.                 replace CF=CF+NAV if fundid==`fid' & time==`rmax'
+ 13.                 bys fundid: gen _cumCF=sum(CF) if fundid==`fid'
+ 14.                 replace CF=. if _cumCF==0
+ 15.                         mkmat CF if CF!=., matrix(cf)
+ 16.                 do "${codes}\irr_mata"
+ 17.                 scalar def root=properroot[1,1]
+ 18.                 replace IRR=(root)^4-1 if fundid==`fid' 
+ 19.                 mat drop properroot cf
+ 20.                 cap scalar drop root
+ 21.                 //IRR w/o adjustment for the inter-quarter timing       
+.                 replace CF=qD-qC  if fundid==`fid'
+ 22.                 replace CF=CF+NAV if fundid==`fid' & time==`rmax'
+ 23.                 replace CF=. if _cumCF==0
+ 24.                         mkmat CF if CF!=., matrix(cf)
+ 25.                 do "${codes}\irr_mata"
+ 26.                 scalar def root=properroot[1,1]
+ 27.                 replace IRRq=(root)^4-1 if fundid==`fid' 
+ 28.                 mat drop properroot cf
+ 29.                 cap scalar drop root
+ 30.                 }
+ 31.         capture {
+ 32.         //DA
+.                 replace CF=D_fv-C_fv  if fundid==`fid'
+ 33.                 replace CF=CF+nav_i if fundid==`fid' & time==`rmax'
+ 34.                 replace CF=. if _cumCF==0
+ 35.                         mkmat CF if CF!=., matrix(cf)
+ 36.                 do "${codes}\irr_mata"
+ 37.                 scalar def root=properroot[1,1]
+ 38.                 replace IRRpv=(root)^4-1 if fundid==`fid' 
+ 39.                 mat drop properroot cf
+ 40.                 cap scalar drop root
+ 41.         //DA w/ beta estimates
+.                 replace CF=pvD-pvC  if fundid==`fid'
+ 42.                 replace CF=CF+pvNAV if fundid==`fid' & time==`rmax'
+ 43.                 replace CF=. if _cumCF==0
+ 44.                         mkmat CF if CF!=., matrix(cf)
+ 45.                 do "${codes}\irr_mata"
+ 46.                 scalar def root=properroot[1,1]
+ 47.                 replace IRRpv2=(root)^4-1 if fundid==`fid' 
+ 48.                 mat drop properroot cf
+ 49.                 cap scalar drop root
+ 50.                 } 
+ 51.                 if "${DAplus}"=="Yes" {
+ 52.         capture {
+ 53.         //Long-Nickels IRR
+.                 replace CF=D-C if fundid==`fid'
+ 54.                 replace CF=CF+nav_ln if fundid==`fid' &time==`rmax'
+ 55.                         mkmat CF if CF!=., matrix(cf)
+ 56.                 do "${codes}\irr_mata"
+ 57.                 scalar def root=properroot[1,1]
+ 58.                 replace IRRln=(root)^4-1 if fundid==`fid' 
+ 59.                 mat drop properroot cf
+ 60.                 cap scalar drop root
+ 61.                 } 
+ 62.         capture { 
+ 63.                 //Capital Dynamics IRR
+.                 qui su s_cd if fundid==`fid' & time==`rmax'
+ 64.                 local s_cd=r(mean)
+ 65.                 replace CF=D*`s_cd'-C if fundid==`fid' 
+ 66.                 replace CF=CF+nav if fundid==`fid' & time==`rmax'
+ 67. //              replace CF=. if _cumCF==0
+.                         mkmat CF if CF!=., matrix(cf)
+ 68.                 do "${codes}\irr_mata"
+ 69.                 scalar def root=properroot[1,1]
+ 70.                 replace IRRcd=(root)^4-1 if fundid==`fid' 
+ 71.                 mat drop properroot cf
+ 72.                 cap scalar drop root
+ 73.                 } 
+ 74.         capture { 
+ 75.                 //Cambridge Associates IRR
+.                 replace CF=Dca-C if fundid==`fid' 
+ 76.                 replace CF=CF+NAVca if fundid==`fid' & time==`rmax'
+ 77.                         mkmat CF if CF!=., matrix(cf)
+ 78.                 do "${codes}\irr_mata"
+ 79.                 scalar def root=properroot[1,1]
+ 80.                 replace IRRst=(root)^4-1 if fundid==`fid' 
+ 81.                 mat drop properroot cf
+ 82.                 cap scalar drop root
+ 83.                 }
+ 84.                 }
+ 85.         **/
+.         }
+ 86. _dots `i' 0
+ 87. }
+..................................................    50
+..................................................   100
+..................................................   150
+..................................................   200
+..................................................   250
+...
+. gsort fundid time
+
+. timer off 1
+
+. timer list 1
+   1:     71.49 /        1 =      71.4860
+
+. gen durationEstFV=log(PME)/log(1+IRRpv)
+(8 missing values generated)
+
+. gen durationEst  =log(TVPI)/log(1+IRR)
+
+. gsort fundid time
+
+.  cap drop temp*
+
+. bys fundid: gen temp =(D_count>0)
+
+. bys fundid: gen temp1=(C_count>0)
+
+. bys fundid: gen Dnum=sum(temp)
+
+. bys fundid: gen Cnum=sum(temp1)
+
+. bys fundid: egen vol_bmk=mean(`bmk'_rsq)
+
+.          replace vol_bmk=sqrt(vol_bmk)
+(10,455 real changes made)
+
+. cap drop temp*
+
+. bys fundid: keep if _n==_N
+(10,202 observations deleted)
+
+. drop CF *_count
+
+. /**/
+. 
+. 
+. gen anKSpme=exp(log(PME)/5.0)-1
+(1 missing value generated)
+
+. gen DA_raw =IRRpv
+
+. gen DA_badj=IRRpv2
+
+. gen alf_LN=IRR-IRRln
+(13 missing values generated)
+
+. gen alf_CD=IRR-IRRcd
+
+. gen alf_ST=IRR-IRRst
+
+. drop IRR?? IRR??? _cumCF Rt
+
+. save "${output}fund_EOLest_${bmk}", replace
+file C:\Users\ogredil.BUS-L-GREDIL\Dropbox\BURGISS\dalf\site\codes_all\DAstata\output\\fund_EOLest_ibmk.dta saved
+
+. 
+. 
+end of do-file
+END IRR computations for benchmark: ibmk
+Results for benchmark: ibmk
+
+   stats |    DA_raw   DA_badj   anKSpme    alf_LN    alf_CD    alf_ST
+---------+------------------------------------------------------------
+       N |       253       253       252       240       253       253
+    mean |  .0073665 -.0032403 -.0021605  .0013195  .0090904  .0097163
+      sd |  .0436482  .0449486  .0690497   .042235  .0499944  .0496848
+      p1 | -.0858606 -.1035526 -.1293178 -.1238038  -.099326 -.0965066
+     p10 | -.0471337 -.0569796 -.0520247 -.0535396 -.0508809 -.0501499
+     p25 | -.0210658 -.0313573 -.0277736 -.0237753 -.0219329   -.02088
+     p50 |  .0063009 -.0055163 -.0034923  .0036094  .0066703  .0075191
+     p75 |  .0343924  .0260178  .0233054  .0298763  .0357427  .0366723
+     p90 |  .0595676  .0547629  .0460524   .048342  .0681981  .0669616
+     p99 |  .1406815  .1223276  .1269717  .0982885   .169284  .1684423
+----------------------------------------------------------------------
+
+             |   DA_raw  DA_badj  anKSpme   alf_LN   alf_CD   alf_ST
+-------------+------------------------------------------------------
+      DA_raw |   1.0000 
+     DA_badj |   0.9483   1.0000 
+     anKSpme |   0.5799   0.5887   1.0000 
+      alf_LN |   0.9039   0.8382   0.5022   1.0000 
+      alf_CD |   0.9880   0.9369   0.5711   0.8820   1.0000 
+      alf_ST |   0.9872   0.9348   0.5758   0.8828   0.9960   1.0000 
+BEGIN preps for benchmark: mkt
+
+. ////////////////////////////////////////////////////////////////////////////////
+> // this code need to be run by MAIN4site_DirectAlpha.do
+. /*Copyright O.Gredil*/
+. 
+. /// time-invariant characteristics /////
+> use "${data}\${CFdset}", clear
+
+. bys fundid: keep if _n==_N
+(16,381 observations deleted)
+
+. keep fundid industry* ftype vintage incept bet_est
+
+. rename incept date
+
+. merge m:1 date using mkt_lvl, keep(master matched) nogen keepus(mkt_lvl mkt_rsq)
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+    matched                               253  
+    -----------------------------------------
+
+. merge m:1 industry date using industry_ret, keep(master matched) gen(ibmk_match) keepus(ibmk_lvl ibmk_rsq)
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+    matched                               253  (ibmk_match==3)
+    -----------------------------------------
+
+. rename (date mkt_lvl mkt_rsq ibmk_lvl ibmk_rsq) (incept mkt_lvl0 mkt_rsq0 ibmk_lvl0 ibmk_rsq0)
+
+. replace ibmk_lvl0=mkt_lvl0 if ibmk_match==1
+(0 real changes made)
+
+. replace ibmk_rsq0=mkt_rsq0 if ibmk_match==1
+(0 real changes made)
+
+. save temp_char, replace
+file temp_char.dta saved
+
+. ** NAV chars 
+. use "${data}\${CFdset}", clear
+
+. keep if nav!=.
+(6,179 observations deleted)
+
+. gsort fundid time date
+
+. qui bysort fundid: egen navcount=count(nav)
+
+. qui bysort fundid: gen firstnav_qtr=time[1]
+
+. qui bysort fundid: gen lastnav_qtr=time[_N]
+
+. qui bysort fundid: egen lastnav=total(cond(time==lastnav_qtr,nav,.))
+
+. qui bysort fundid: gen lastnav_date=date[_N]
+
+. format lastnav_date %td
+
+. bys fundid: keep if _n==_N
+(10,202 observations deleted)
+
+. keep fundid last* firstnav_qtr navcount
+
+. merge 1:1 fundid using temp_char, nogen keep(matched)
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+    matched                               253  
+    -----------------------------------------
+
+. save temp_char, replace 
+file temp_char.dta saved
+
+. ** Contributions' chars 
+. use "${data}\${CFdset}", clear
+
+. keep if C!=0
+(13,513 observations deleted)
+
+. gsort fundid time date
+
+. qui bysort fundid: egen Ccount=count(C)
+
+. qui bysort fundid: gen firstC_qtr=time[1]
+
+. qui bysort fundid: gen lastC_qtr=time[_N]
+
+. qui bysort fundid: gen lastC_date=date[_N]
+
+. bys fundid: keep if _n==_N
+(2,868 observations deleted)
+
+. keep fundid last* firstC_qtr Ccount
+
+. merge 1:1 fundid using temp_char, nogen keep(matched)
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+    matched                               253  
+    -----------------------------------------
+
+. save temp_char, replace 
+file temp_char.dta saved
+
+. ** Distributions' chars 
+. use "${data}\${CFdset}", clear
+
+. keep if D!=0
+(13,267 observations deleted)
+
+. gsort fundid time date
+
+. qui bysort fundid: egen Dcount=count(D)
+
+. qui bysort fundid: gen firstD_qtr=time[1]
+
+. qui bysort fundid: gen lastD_qtr=time[_N]
+
+. qui bysort fundid: gen lastD_date=date[_N]
+
+. bys fundid: keep if _n==_N
+(3,114 observations deleted)
+
+. keep fundid last* firstD_qtr Dcount
+
+. merge 1:1 fundid using temp_char, nogen keep(matched)
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+    matched                               253  
+    -----------------------------------------
+
+. foreach vv of varlist *_date {
+  2. format `vv' %td 
+  3. }
+
+. save temp_char, replace 
+file temp_char.dta saved
+
+. 
+. 
+. 
+. use "${data}\${CFdset}", clear
+
+. drop industry* ftype vintage incept bet_est
+
+. joinby fundid using temp_char
+
+. merge m:1 date using mkt_lvl, keep(master matched) nogen
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+    matched                            16,634  
+    -----------------------------------------
+
+. merge m:1 industry date using industry_ret, keep(master matched)  keepus(ibmk_lvl ibmk_rsq) gen(ib) 
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+    matched                            16,634  (ib==3)
+    -----------------------------------------
+
+. replace ibmk_match=1 if industry==""
+(0 real changes made)
+
+. replace ibmk_lvl =mkt_lvl  if ibmk_match==1  
+(0 real changes made)
+
+. replace ibmk_lvl0=mkt_lvl0 if ibmk_match==1  
+(0 real changes made)
+
+. replace ibmk_rsq =mkt_rsq  if ibmk_match==1  
+(0 real changes made)
+
+. 
+. replace mkt_rsq=mkt_rsq-mkt_rsq0
+(16,634 real changes made)
+
+. replace ibmk_rsq=ibmk_rsq-ibmk_rsq0
+(16,634 real changes made)
+
+. 
+. gen weekday=dow(date)
+
+. gsort fundid date
+
+. if "${bmk}"=="ibmk" {
+.         local bmk "ibmk"
+. }
+
+. else {
+.         local bmk "mkt"
+. }
+
+. if "${BetaAdj}"=="Yes" {
+. gen pv_=exp(bet_est*log(`bmk'_lvl0/`bmk'_lvl))-0.5*`bmk'_rsq*bet_est*(bet_est-1)
+. gen pvD=D*exp(bet_est*log(`bmk'_lvl0/`bmk'_lvl))-0.5*`bmk'_rsq*bet_est*(bet_est-1)
+. gen pvC=C*exp(bet_est*log(`bmk'_lvl0/`bmk'_lvl))-0.5*`bmk'_rsq*bet_est*(bet_est-1)
+. gen pvNAV=nav*exp(bet_est*log(`bmk'_lvl0/`bmk'_lvl))-0.5*`bmk'_rsq*bet_est*(bet_est-1)
+(6,179 missing values generated)
+. 
+. }
+
+. else {
+. gen pv_=`bmk'_lvl0/`bmk'_lvl
+. gen pvD=D*`bmk'_lvl0/`bmk'_lvl
+. gen pvC=C*`bmk'_lvl0/`bmk'_lvl
+. gen pvNAV=nav*`bmk'_lvl0/`bmk'_lvl
+. }
+
+. /////////////////////////////////////////////////////////////////////////////////////
+> *Going to the quarterly frequency w/ zeros for quarters with missing cash flows
+. global qVars "qD qC C D pvC pvD"
+
+. gsort fundid time date
+
+. cap drop temp*
+
+. bys fundid time: gen temp=`bmk'_lvl if _n==_N
+(6,179 missing values generated)
+
+. bys fundid time: egen temp2 = total(temp), missing 
+
+. /* qC and qD will be nominal sums */
+. gen qC=C
+
+. gen qD=D
+
+. /*discount C and D at bmk return to be end-of-quarter values*/
+. replace C=C*temp2/`bmk'_lvl 
+(3,082 real changes made)
+
+. replace D=D*temp2/`bmk'_lvl 
+(3,104 real changes made)
+
+. foreach vv in C D {
+  2. qui bys fundid time: egen `vv'_count=count(`vv')
+  3. }
+
+. foreach vv of varlist $qVars {
+  2. disp "`vv'"
+  3. cap drop temp*
+  4. rename `vv' temp
+  5. qui bys fundid time: egen `vv'=total(temp)
+  6. cap drop temp*
+  7. }
+qD
+qC
+C
+D
+pvC
+pvD
+
+. bys fundid time: keep if _n==_N
+(6,179 observations deleted)
+
+. bys fundid: replace nav=0 if _n==_N & nav==. & lastD_date>=lastnav_date
+(0 real changes made)
+
+. bys fundid: gen  _nC=C[_n+1]/`bmk'_lvl[_n+1]*`bmk'_lvl if date[_n+1]>max(lastD_date,lastnav_date)
+(10,455 missing values generated)
+
+. bys fundid: egen __nC=total(_nC) 
+
+. order _*
+
+. bys fundid: drop if nav==. & date>=max(lastD_date,lastnav_date)
+(0 observations deleted)
+
+. bys fundid: replace D=D-__nC if _n==_N & __nC!=0
+(0 real changes made)
+
+. drop _*
+
+. drop lastC_date lastD_date lastnav_date
+
+. gen qofd=qofd(date)
+
+. 
+. xtset fundid qofd
+       panel variable:  fundid (unbalanced)
+        time variable:  qofd, 93 to 244
+                delta:  1 unit
+
+. tsfill  //will make a difference if for some quartres NAVs are not availble
+
+. *pick the last business day in the quarter for padded quarters
+. forval dd=1/7 {
+  2. gen temp`dd' = bofd("bdays",dofq(qofd+1)-`dd')
+  3. }
+(3,041 missing values generated)
+(3,103 missing values generated)
+(3,305 missing values generated)
+(3,170 missing values generated)
+(2,910 missing values generated)
+(3,260 missing values generated)
+(5,023 missing values generated)
+
+. egen temp_=rowfirst(temp1-temp7)
+
+. gen temp__=dofb(temp_,"bdays")
+
+. replace date=temp__ if date==.
+(0 real changes made)
+
+. cap drop temp*
+
+. foreach vv in C D {
+  2. replace `vv'_count=0 if `vv'==. | `vv'==0
+  3. }
+(7,947 real changes made)
+(7,740 real changes made)
+
+. *merge benchmark return data for EoQs with missing NAVs and zero CFs
+. merge m:1 date using mkt_lvl, update keep(1 3 4 5) nogen
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+
+    matched                            10,455
+        not updated                         0  
+        missing updated                     0  
+        nonmissing conflict            10,455  
+    -----------------------------------------
+
+. merge m:1 industry date using industry_ret, update keep(1 3 4 5) nogen
+
+    Result                           # of obs.
+    -----------------------------------------
+    not matched                             0
+
+    matched                            10,455
+        not updated                         0  
+        missing updated                     0  
+        nonmissing conflict            10,455  
+    -----------------------------------------
+
+. replace  ibmk_lvl=mkt_lvl if ibmk_match==1 & ibmk_lvl==.
+(0 real changes made)
+
+. replace  ibmk_rsq=mkt_rsq if ibmk_match==1 & ibmk_rsq==.
+(0 real changes made)
+
+. bys fundid: egen fundT=max(time)
+
+. cap drop temp
+
+. qui gen temp=`bmk'_lvl if time==fundT
+
+. bys fundid: egen `bmk'_lvlT=max(temp) 
+
+. cap drop temp
+
+. order bday*
+
+. gsort fundid time
+
+. xtset fundid time
+       panel variable:  fundid (unbalanced)
+        time variable:  time, 0 to 55
+                delta:  1 unit
+
+. qui gen Rt=0 
+
+. bys fundid: replace  Rt=`bmk'_lvl/l1.`bmk'_lvl if _n>=2
+(10,202 real changes made)
+
+. save "funds_qly", replace 
+file funds_qly.dta saved
+
+. 
+end of do-file
+END preps for benchmark: mkt
+BEGIN IRR computations for benchmark: mkt
+
+. ////////////////////////////////////////////////////////////////////////////////
+> // this code need to be run by MAIN4site_DirectAlpha.do
+. /*Copyright O.Gredil*/
+. set more off
+
+. use "funds_qly", clear // time increment should be quarterly in this file
+
+. gsort fundid time
+
+. bys fundid: gen PME=(sum(pvD)+pvNAV)/sum(pvC)
+
+. if "${bmk}"=="ibmk" {
+.         local bmk "ibmk"
+. }
+
+. else {
+.         local bmk "mkt"
+. }
+
+. gen rc_0t =log(`bmk'_lvl/`bmk'_lvl0)
+
+. gen __dfac=exp(log(`bmk'_lvlT/`bmk'_lvl0)-rc_0t)
+
+. bys fundid: gen C_fvT =C*__dfac
+
+. bys fundid: gen D_fvT =D*__dfac
+
+. bys fundid: gen cumC_fv=sum(C*__dfac)/__dfac
+
+. bys fundid: gen cumD_fv=sum(D*__dfac)/__dfac
+
+. bys fundid: gen _PME=(cumD_fv+nav)/cumC_fv
+
+. // scatter _PME PME //should be same if PV are not adjusted for beta 
+. replace PME =_PME if PME==.
+(0 real changes made)
+
+. bys fundid: replace PME = 0.98 if PME==. & time==0 
+(0 real changes made)
+
+. bys fundid: ipolate PME bday, gen(_PMEi)
+
+. replace PME =_PMEi if PME==.
+(0 real changes made)
+
+. bys fundid: gen  nav_ln = cumC_fv-cumD_fv
+
+. /* create interpolated NAVs to compute inputs for CapDyn and CamAs metrics in case some interim NAVs are missing*/ 
+. bys fundid: gen nav_i =cond(nav!=.,nav,(cumC_fv-C)*_PMEi+C*0.98 - cumD_fv)
+
+. if "${BetaAdj}"=="Yes" {
+. replace pvNAV = nav_i*exp(-rc_0t*bet_est) if pvNAV==.
+(0 real changes made)
+. }
+
+. else {
+. replace pvNAV = nav_i*exp(-rc_0t) if pvNAV==.
+. }
+
+. bys fundid: gen TVPI=(sum(D)+nav_i)/sum(C)
+
+. drop if time>60 // disregard any data beyond the 15th year 
+(0 observations deleted)
+
+. bys fundid: egen fundTe=max(time)
+
+. replace nav=nav_i if nav==.
+(0 real changes made)
+
+. 
+. order fundid time *PME* `bmk'* cumD_* cumC_*  nav* pvNAV _* rc_0t date C D
+
+. drop _*
+
+. 
+. /*CD adjustment factor*/
+. gen s_cd = cond(cumD_fv==0,1,(cumC_fv-nav_i)/cumD_fv)
+
+. /*mPME adjustment factor*/
+. gen s_ca = cond(D+nav_i<D,1,abs(D)/(abs(D)+abs(nav_i)))
+
+. gen NAVca=nav_i
+
+. bys fundid: replace NAVca=(1-s_ca)*(NAVca[_n-1]*Rt+C) if _n>=2
+(9980 real changes made)
+
+. gen Dca  =D
+
+. bys fundid: replace Dca=s_ca*(NAVca[_n-1]*Rt+C) if _n>=2
+(2715 real changes made)
+
+. 
+. qui su fundid
+
+. local minfundid=r(min)
+
+. local maxfundid=r(max)
+
+. foreach vv in "" "q" "pv" "pv2" "ln" "cd" "st" {
+  2. qui gen IRR`vv'=.
+  3. }
+
+. /////////////////// end-of-life estimates  ////////////////////////////////
+> // fund-quarters need be sorted descending by time
+. gsort +fundid  -time
+
+. timer clear 1
+
+. timer on 1
+
+. qui tab fundid, matrow(fundIDs)
+
+. local rows=rowsof(fundIDs)
+
+. _dots 0, title(Estimation Loop running) reps(`rows')
+Estimation Loop running (253)
+----+--- 1 ---+--- 2 ---+--- 3 ---+--- 4 ---+--- 5 
+
+. forval i=1/`rows' {
+  2. local fid=fundIDs[`i',1]
+  3. // disp "`fid'"
+.         qui su time if fundid==`fid' 
+  4.         local rmax=r(max)
+  5.         qui su nav if fundid==`fid' & time==`rmax'
+  6.         local nav=r(mean)
+  7.         if `nav'!=. {
+  8. //      /**/
+.         capture {
+  9.                 //IRR w/ eoq-valued CFs
+.                 cap drop CF
+ 10.                 cap drop _cumCF
+ 11.                 gen CF=D-C  if fundid==`fid'
+ 12.                 replace CF=CF+NAV if fundid==`fid' & time==`rmax'
+ 13.                 bys fundid: gen _cumCF=sum(CF) if fundid==`fid'
+ 14.                 replace CF=. if _cumCF==0
+ 15.                         mkmat CF if CF!=., matrix(cf)
+ 16.                 do "${codes}\irr_mata"
+ 17.                 scalar def root=properroot[1,1]
+ 18.                 replace IRR=(root)^4-1 if fundid==`fid' 
+ 19.                 mat drop properroot cf
+ 20.                 cap scalar drop root
+ 21.                 //IRR w/o adjustment for the inter-quarter timing       
+.                 replace CF=qD-qC  if fundid==`fid'
+ 22.                 replace CF=CF+NAV if fundid==`fid' & time==`rmax'
+ 23.                 replace CF=. if _cumCF==0
+ 24.                         mkmat CF if CF!=., matrix(cf)
+ 25.                 do "${codes}\irr_mata"
+ 26.                 scalar def root=properroot[1,1]
+ 27.                 replace IRRq=(root)^4-1 if fundid==`fid' 
+ 28.                 mat drop properroot cf
+ 29.                 cap scalar drop root
+ 30.                 }
+ 31.         capture {
+ 32.         //DA
+.                 replace CF=D_fv-C_fv  if fundid==`fid'
+ 33.                 replace CF=CF+nav_i if fundid==`fid' & time==`rmax'
+ 34.                 replace CF=. if _cumCF==0
+ 35.                         mkmat CF if CF!=., matrix(cf)
+ 36.                 do "${codes}\irr_mata"
+ 37.                 scalar def root=properroot[1,1]
+ 38.                 replace IRRpv=(root)^4-1 if fundid==`fid' 
+ 39.                 mat drop properroot cf
+ 40.                 cap scalar drop root
+ 41.         //DA w/ beta estimates
+.                 replace CF=pvD-pvC  if fundid==`fid'
+ 42.                 replace CF=CF+pvNAV if fundid==`fid' & time==`rmax'
+ 43.                 replace CF=. if _cumCF==0
+ 44.                         mkmat CF if CF!=., matrix(cf)
+ 45.                 do "${codes}\irr_mata"
+ 46.                 scalar def root=properroot[1,1]
+ 47.                 replace IRRpv2=(root)^4-1 if fundid==`fid' 
+ 48.                 mat drop properroot cf
+ 49.                 cap scalar drop root
+ 50.                 } 
+ 51.                 if "${DAplus}"=="Yes" {
+ 52.         capture {
+ 53.         //Long-Nickels IRR
+.                 replace CF=D-C if fundid==`fid'
+ 54.                 replace CF=CF+nav_ln if fundid==`fid' &time==`rmax'
+ 55.                         mkmat CF if CF!=., matrix(cf)
+ 56.                 do "${codes}\irr_mata"
+ 57.                 scalar def root=properroot[1,1]
+ 58.                 replace IRRln=(root)^4-1 if fundid==`fid' 
+ 59.                 mat drop properroot cf
+ 60.                 cap scalar drop root
+ 61.                 } 
+ 62.         capture { 
+ 63.                 //Capital Dynamics IRR
+.                 qui su s_cd if fundid==`fid' & time==`rmax'
+ 64.                 local s_cd=r(mean)
+ 65.                 replace CF=D*`s_cd'-C if fundid==`fid' 
+ 66.                 replace CF=CF+nav if fundid==`fid' & time==`rmax'
+ 67. //              replace CF=. if _cumCF==0
+.                         mkmat CF if CF!=., matrix(cf)
+ 68.                 do "${codes}\irr_mata"
+ 69.                 scalar def root=properroot[1,1]
+ 70.                 replace IRRcd=(root)^4-1 if fundid==`fid' 
+ 71.                 mat drop properroot cf
+ 72.                 cap scalar drop root
+ 73.                 } 
+ 74.         capture { 
+ 75.                 //Cambridge Associates IRR
+.                 replace CF=Dca-C if fundid==`fid' 
+ 76.                 replace CF=CF+NAVca if fundid==`fid' & time==`rmax'
+ 77.                         mkmat CF if CF!=., matrix(cf)
+ 78.                 do "${codes}\irr_mata"
+ 79.                 scalar def root=properroot[1,1]
+ 80.                 replace IRRst=(root)^4-1 if fundid==`fid' 
+ 81.                 mat drop properroot cf
+ 82.                 cap scalar drop root
+ 83.                 }
+ 84.                 }
+ 85.         **/
+.         }
+ 86. _dots `i' 0
+ 87. }
+..................................................    50
+..................................................   100
+..................................................   150
+..................................................   200
+..................................................   250
+...
+. gsort fundid time
+
+. timer off 1
+
+. timer list 1
+   1:     72.42 /        1 =      72.4230
+
+. gen durationEstFV=log(PME)/log(1+IRRpv)
+(5 missing values generated)
+
+. gen durationEst  =log(TVPI)/log(1+IRR)
+
+. gsort fundid time
+
+.  cap drop temp*
+
+. bys fundid: gen temp =(D_count>0)
+
+. bys fundid: gen temp1=(C_count>0)
+
+. bys fundid: gen Dnum=sum(temp)
+
+. bys fundid: gen Cnum=sum(temp1)
+
+. bys fundid: egen vol_bmk=mean(`bmk'_rsq)
+
+.          replace vol_bmk=sqrt(vol_bmk)
+(10,455 real changes made)
+
+. cap drop temp*
+
+. bys fundid: keep if _n==_N
+(10,202 observations deleted)
+
+. drop CF *_count
+
+. /**/
+. 
+. 
+. gen anKSpme=exp(log(PME)/5.0)-1
+
+. gen DA_raw =IRRpv
+
+. gen DA_badj=IRRpv2
+
+. gen alf_LN=IRR-IRRln
+(29 missing values generated)
+
+. gen alf_CD=IRR-IRRcd
+
+. gen alf_ST=IRR-IRRst
+
+. drop IRR?? IRR??? _cumCF Rt
+
+. save "${output}fund_EOLest_${bmk}", replace
+(note: file C:\Users\ogredil.BUS-L-GREDIL\Dropbox\BURGISS\dalf\site\codes_all\DAstata\output\\fund_EOLest_mkt.dta not found)
+file C:\Users\ogredil.BUS-L-GREDIL\Dropbox\BURGISS\dalf\site\codes_all\DAstata\output\\fund_EOLest_mkt.dta saved
+
+. 
+. 
+end of do-file
+END IRR computations for benchmark: mkt
+Results for benchmark: mkt
+
+   stats |    DA_raw   DA_badj   anKSpme    alf_LN    alf_CD    alf_ST
+---------+------------------------------------------------------------
+       N |       253       253       253       224       253       253
+    mean |  .0277114  .0188761  .0164419  .0115128  .0291235  .0290531
+      sd |  .0712329  .0731996  .0673311  .0591141  .0772166  .0769267
+      p1 |  -.125834 -.1616686  -.129926 -.1497772 -.1543184 -.1550995
+     p10 | -.0595313 -.0674838 -.0539834 -.0546695  -.059776 -.0568523
+     p25 |  -.013715 -.0273188 -.0230731 -.0253077 -.0193746 -.0129239
+     p50 |  .0224054  .0140964   .013808  .0198091  .0240516   .024146
+     p75 |  .0672876  .0569132  .0496975  .0468959  .0721908   .071247
+     p90 |  .1094037  .1058237  .0920362  .0788017  .1221419  .1226594
+     p99 |    .22039  .2031787  .2138864  .1443344  .2752255  .2813389
+----------------------------------------------------------------------
+
+             |   DA_raw  DA_badj  anKSpme   alf_LN   alf_CD   alf_ST
+-------------+------------------------------------------------------
+      DA_raw |   1.0000 
+     DA_badj |   0.9861   1.0000 
+     anKSpme |   0.8916   0.8980   1.0000 
+      alf_LN |   0.8804   0.8572   0.7630   1.0000 
+      alf_CD |   0.9855   0.9694   0.8796   0.8722   1.0000 
+      alf_ST |   0.9862   0.9700   0.8781   0.8732   0.9967   1.0000 
+
+. 
+. 
+. cap log close
